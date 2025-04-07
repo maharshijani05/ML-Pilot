@@ -352,7 +352,7 @@ if uploaded_file:
 
             except Exception as e:
                 st.warning(f"⚠️ Error during split: {str(e)}")
-        
+
     # Model Building Section
     st.markdown("---")
     st.subheader("📊 Model Selection")
@@ -574,5 +574,59 @@ if uploaded_file:
             st.error(f"❌ Error during evaluation: {str(e)}")
     else:
         st.warning("⚠️ Please build a model and perform train-test split first.")
+
+    st.markdown("---")
+    st.header("🧪 Prediction Interface")
+
+    if "selected_model" in st.session_state and "X_train" in st.session_state:
+        model = st.session_state.selected_model
+        X_train = st.session_state.X_train
+
+        pred_option = st.radio("Choose Prediction Input Mode", ["Upload CSV", "Manual Input"])
+
+        if pred_option == "Upload CSV":
+            pred_file = st.file_uploader("Upload new data for prediction", type=["csv"], key="pred_upload")
+            if pred_file is not None:
+                try:
+                    input_df = pd.read_csv(pred_file)
+                    st.write("📄 Uploaded Data Preview:")
+                    st.dataframe(input_df.head())
+
+                    pred_result = model.predict(input_df)
+                    st.subheader("🔮 Predictions")
+                    st.write(pred_result)
+
+                    if st.session_state["model_type"] == "Classification" and hasattr(model, "predict_proba"):
+                        st.subheader("📊 Prediction Probabilities")
+                        proba = model.predict_proba(input_df)
+                        st.dataframe(pd.DataFrame(proba, columns=[f"Class {i}" for i in range(proba.shape[1])]))
+
+                except Exception as e:
+                    st.error(f"❌ Error in prediction: {str(e)}")
+
+        elif pred_option == "Manual Input":
+            st.subheader("📝 Enter input values")
+            input_data = []
+            for col in X_train.columns:
+                val = st.text_input(f"{col}", value=str(X_train[col].iloc[0]))
+                input_data.append(val)
+
+            if st.button("🔮 Predict"):
+                try:
+                    input_array = np.array(input_data).reshape(1, -1).astype(float)
+                    prediction = model.predict(input_array)
+                    st.success(f"🎯 Prediction: {prediction[0]}")
+
+                    if st.session_state["model_type"] == "Classification" and hasattr(model, "predict_proba"):
+                        proba = model.predict_proba(input_array)
+                        st.write("📊 Prediction Probabilities:")
+                        st.dataframe(pd.DataFrame(proba, columns=[f"Class {i}" for i in range(proba.shape[1])]))
+
+                except Exception as e:
+                    st.error(f"⚠️ Manual input prediction error: {str(e)}")
+    else:
+        st.info("ℹ️ Train a model first to use prediction interface.")
+
+
 else:
     st.info("📌 Please upload a CSV file to get started.")
