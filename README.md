@@ -14,6 +14,7 @@
 - **Auto ML Task Detection** (Classification / Regression)
 - **Model Comparison** to compare multiple models side-by-side with evaluation metrics along with the download comparison button
 - **Select & Train Models** (Scikit-learn + optional XGBoost)
+- **Hyperparameter Tuning** – both automatic (GridSearchCV) and manual options 
 - **Evaluate Models** with metrics like accuracy, precision, recall, F1, MAE, MSE, R2, and more
 - **Confusion Matrix & ROC Curve (for classification)**
 - **Actual vs Predicted Plots (for regression)**
@@ -72,6 +73,16 @@ streamlit run app.py
 - XGBoost Regressor *(if installed)*
 
 ---
+
+## 🛠️ Hyperparameter Tuning
+
+MLPilot supports two powerful ways to fine-tune models:
+
+🔧 Manual Tuning  
+Customize hyperparameters directly before training.
+
+🤖 Automatic Tuning  
+Enable GridSearchCV to automatically find the best parameters with cross-validation.
 
 ## 📄 License
 This project is licensed under the MIT License.
