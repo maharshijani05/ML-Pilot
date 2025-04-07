@@ -12,11 +12,15 @@
 - **Scale Numerical Features** (Standard, MinMax, Robust)
 - **Train-Test Split** with slider control
 - **Auto ML Task Detection** (Classification / Regression)
+- **Model Comparison** to compare multiple models side-by-side with evaluation metrics along with the download comparison button
 - **Select & Train Models** (Scikit-learn + optional XGBoost)
 - **Evaluate Models** with metrics like accuracy, precision, recall, F1, MAE, MSE, R2, and more
 - **Confusion Matrix & ROC Curve (for classification)**
 - **Actual vs Predicted Plots (for regression)**
 - **Download Trained Model and Evaluation Report**
+- **Reset Button** after dataset upload to start fresh (refresh app state)
+- **Prediction Interface** to upload new data or enter manually
+- **View Predictions** (and probabilities for classification)
 
 ---
 
