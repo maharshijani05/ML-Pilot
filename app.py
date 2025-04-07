@@ -55,6 +55,14 @@ if uploaded_file:
 
     st.success("✅ File uploaded successfully!")
 
+    if st.button("🔄 Reset"):
+        st.session_state.clear()
+        try:
+            st.rerun()
+        except:
+            st.markdown("""
+                <meta http-equiv="refresh" content="0">
+            """, unsafe_allow_html=True)
     # Preview
     st.markdown("### 👀 Preview of Dataset")
     st.dataframe(df.head())
@@ -352,6 +360,133 @@ if uploaded_file:
 
             except Exception as e:
                 st.warning(f"⚠️ Error during split: {str(e)}")
+
+#--- Model comparision---
+    try:
+        from xgboost import XGBClassifier, XGBRegressor
+        xgboost_available = True
+    except ImportError:
+        xgboost_available = False
+
+    st.markdown("---")
+    st.subheader("📊 Compare Multiple Models")
+
+    # Step 1: Ensure Train-Test data is available
+    if "X_train" not in st.session_state or "X_test" not in st.session_state:
+        st.warning("⚠️ Please perform Train-Test Split before comparing models.")
+        st.stop()
+
+    X_train = st.session_state["X_train"]
+    X_test = st.session_state["X_test"]
+    y_train = st.session_state["y_train"]
+    y_test = st.session_state["y_test"]
+
+    # Step 2: Let user select problem type here
+    model_type = st.radio(
+        "Select the type of problem you're solving:",
+        ["Classification", "Regression"],
+        key="compare_model_type"
+    )
+
+    # Save it globally for use in later steps (like model selection)
+    st.session_state["model_type"] = model_type
+
+    # Step 3: Define available models
+    classification_models = {
+        "Logistic Regression": LogisticRegression(),
+        "K-Nearest Neighbors (KNN)": KNeighborsClassifier(),
+        "Decision Tree": DecisionTreeClassifier(),
+        "Random Forest": RandomForestClassifier(),
+        "Support Vector Machine (SVM)": SVC(),
+        "Naive Bayes": GaussianNB(),
+        "Gradient Boosting": GradientBoostingClassifier(),
+    }
+    regression_models = {
+        "Linear Regression": LinearRegression(),
+        "KNN Regressor": KNeighborsRegressor(),
+        "Decision Tree Regressor": DecisionTreeRegressor(),
+        "Random Forest Regressor": RandomForestRegressor(),
+        "Support Vector Regressor (SVR)": SVR(),
+        "Ridge Regression": Ridge(),
+        "Lasso Regression": Lasso(),
+        "Gradient Boosting Regressor": GradientBoostingRegressor(),
+    }
+    if xgboost_available:
+        classification_models["XGBoost"] = XGBClassifier()
+        regression_models["XGBoost Regressor"] = XGBRegressor()
+
+    available_models = classification_models if model_type == "Classification" else regression_models
+
+    # Step 4: Select models to compare
+    selected_model_names = st.multiselect(
+        "Select models to compare:",
+        options=list(available_models.keys()),
+        help="Select at least 2 models to compare."
+    )
+
+    # Step 5: Compare on button click
+    if selected_model_names:
+        if st.button("🔍 Compare Models"):
+            results = []
+            for name in selected_model_names:
+                model = available_models[name]
+                try:
+                    model.fit(X_train, y_train)
+                    y_pred = model.predict(X_test)
+
+                    if model_type == "Classification":
+                        accuracy = accuracy_score(y_test, y_pred)
+                        f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+                        results.append({"Model": name, "Accuracy": accuracy, "F1-Score": f1})
+                    else:
+                        mae = mean_absolute_error(y_test, y_pred)
+                        mse = mean_squared_error(y_test, y_pred)
+                        r2 = r2_score(y_test, y_pred)
+                        results.append({"Model": name, "MAE": mae, "MSE": mse, "R²": r2})
+
+                except Exception as e:
+                    st.error(f"❌ {name} failed to train or predict. Error: {e}")
+
+            # Step 6: Show results
+            if results:
+                results_df = pd.DataFrame(results)
+                st.dataframe(results_df)
+
+                # Plot and highlight best
+                if model_type == "Classification":
+                    best_model = results_df.loc[results_df["Accuracy"].idxmax()]
+                    fig = px.bar(
+                        results_df,
+                        x="Model",
+                        y=["Accuracy", "F1-Score"],
+                        barmode="group",
+                        title=f"📊 Classification Model Comparison (🏆 Best: {best_model['Model']})",
+                        color_discrete_sequence=["#636EFA", "#EF553B"]
+                    )
+                else:
+                    best_model = results_df.loc[results_df["R²"].idxmax()]
+                    fig = px.bar(
+                        results_df,
+                        x="Model",
+                        y=["MAE", "MSE", "R²"],
+                        barmode="group",
+                        title=f"📊 Regression Model Comparison (🏆 Best: {best_model['Model']})",
+                        color_discrete_sequence=["#00CC96", "#FFA15A", "#AB63FA"]
+                    )
+
+                st.plotly_chart(fig, use_container_width=True)
+                st.success(f"🏆 Best Performing Model: `{best_model['Model']}`")
+
+                # Step 7: Download CSV report
+                csv = results_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Comparison Report",
+                    data=csv,
+                    file_name="model_comparison_report.csv",
+                    mime="text/csv"
+                )
+    else:
+        st.info("👈 Please select at least two models to compare.")
 
     # Model Building Section
     st.markdown("---")
