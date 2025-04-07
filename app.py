@@ -28,6 +28,7 @@ from sklearn.metrics import (
 )
 import io
 import pickle
+from sklearn.model_selection import GridSearchCV
 
 # Page Config
 st.set_page_config(page_title="📊 MLPilot: ML Dashboard", layout="wide")
@@ -530,44 +531,142 @@ if uploaded_file:
             regression_models["XGBoost Regressor"] = XGBRegressor()
 
         # 2. Infer task from y_train
-        if y_train.dtype == 'object' or y_train.nunique() < 10:
-            inferred_task = 'Classification'
-        else:
-            inferred_task = 'Regression'
+        # if y_train.dtype == 'object' or y_train.nunique() < 10:
+        #     inferred_task = 'Classification'
+        # else:
+        #     inferred_task = 'Regression'
 
         # 3. Let user choose category
+        inferred_task = 'Classification' if y_train.dtype == 'object' or y_train.nunique() < 10 else 'Regression'
         model_type_choice = st.radio("Select the type of model you want to build:", ["Classification", "Regression"])
 
         # 4. Dropdown based on selected category
         if model_type_choice == "Classification":
             model_name = st.selectbox("Select a classification model:", list(classification_models.keys()))
+            model_dict = classification_models
         else:
             model_name = st.selectbox("Select a regression model:", list(regression_models.keys()))
+            model_dict = regression_models
+
+        # 🔧 Hyperparameter Tuning Options
+        tuning_option = st.radio("🔧 Want to apply Hyperparameter Tuning?", ["None", "Manual", "Automatic"])
+        manual_params = {}
+
+        if tuning_option == "Manual":
+            st.markdown("### 🔧 Manual Tuning")
+
+            # Manual Parameters - Classification
+            if model_type_choice == "Classification":
+                if model_name == "K-Nearest Neighbors (KNN)":
+                    manual_params["n_neighbors"] = st.slider("n_neighbors", 1, 20, 5)
+                elif model_name == "Random Forest":
+                    manual_params["n_estimators"] = st.slider("n_estimators", 50, 300, 100)
+                    manual_params["max_depth"] = st.slider("max_depth", 1, 50, 10)
+                elif model_name == "Support Vector Machine (SVM)":
+                    manual_params["C"] = st.number_input("Penalty (C)", value=1.0)
+                    manual_params["kernel"] = st.selectbox("Kernel", ["linear", "rbf", "poly", "sigmoid"])
+                elif model_name == "Gradient Boosting":
+                    manual_params["n_estimators"] = st.slider("n_estimators", 50, 300, 100)
+                    manual_params["learning_rate"] = st.slider("learning_rate", 0.01, 1.0, 0.1)
+
+            # Manual Parameters - Regression
+            else:
+                if model_name == "KNN Regressor":
+                    manual_params["n_neighbors"] = st.slider("n_neighbors", 1, 20, 5)
+                elif model_name == "Random Forest Regressor":
+                    manual_params["n_estimators"] = st.slider("n_estimators", 50, 300, 100)
+                    manual_params["max_depth"] = st.slider("max_depth", 1, 50, 10)
+                elif model_name == "Support Vector Regressor (SVR)":
+                    manual_params["C"] = st.number_input("Penalty (C)", value=1.0)
+                    manual_params["epsilon"] = st.number_input("Epsilon", value=0.1)
+                    manual_params["kernel"] = st.selectbox("Kernel", ["linear", "rbf", "poly", "sigmoid"])
+                elif model_name == "Gradient Boosting Regressor":
+                    manual_params["n_estimators"] = st.slider("n_estimators", 50, 300, 100)
+                    manual_params["learning_rate"] = st.slider("learning_rate", 0.01, 1.0, 0.1)
+                    manual_params["max_depth"] = st.slider("max_depth", 1, 20, 3)
+
+        elif tuning_option == "Automatic":
+            st.markdown("### 🤖 Automatic Tuning using GridSearchCV")
+            st.info("Predefined grid used for demo (expandable). This may take a few seconds depending on model.")
 
         # 5. Validate model type vs inferred task
         if st.button("Build Model"):
-            if "X_train" not in st.session_state or "y_train" not in st.session_state:
-                st.error("🚫 Please perform Train-Test Split before building the model.")
+            X_train = st.session_state.X_train
+            y_train = st.session_state.y_train
+
+            if inferred_task != model_type_choice:
+                st.error(f"❌ The selected model type '{model_type_choice}' does not match the target column type ({inferred_task}). Please choose a {inferred_task} model.")
             else:
-                X_train = st.session_state.X_train
-                y_train = st.session_state.y_train
+                base_model = model_dict[model_name]
 
-                if inferred_task != model_type_choice:
-                    st.error(f"❌ The selected model type '{model_type_choice}' does not match the target column type ({inferred_task}). Please choose a {inferred_task} model.")
+                if tuning_option == "Manual":
+                    selected_model = type(base_model)(**manual_params)
+
+                elif tuning_option == "Automatic":
+                    # Param Grids
+                    param_grids = {
+                        # Classification
+                        "Random Forest": {
+                            "n_estimators": [50, 100],
+                            "max_depth": [5, 10, None]
+                        },
+                        "K-Nearest Neighbors (KNN)": {
+                            "n_neighbors": [3, 5, 7]
+                        },
+                        "Support Vector Machine (SVM)": {
+                            "C": [0.1, 1, 10],
+                            "kernel": ["linear", "rbf"]
+                        },
+                        "Gradient Boosting": {
+                            "n_estimators": [100, 150],
+                            "learning_rate": [0.05, 0.1],
+                            "max_depth": [3, 5]
+                        },
+
+                        # Regression
+                        "Random Forest Regressor": {
+                            "n_estimators": [50, 100],
+                            "max_depth": [5, 10, None]
+                        },
+                        "KNN Regressor": {
+                            "n_neighbors": [3, 5, 7]
+                        },
+                        "Support Vector Regressor (SVR)": {
+                            "C": [0.1, 1, 10],
+                            "epsilon": [0.1, 0.2]
+                        },
+                        "Gradient Boosting Regressor": {
+                            "n_estimators": [100, 150],
+                            "learning_rate": [0.05, 0.1],
+                            "max_depth": [3, 5]
+                        }
+                    }
+
+                    grid_params = param_grids.get(model_name, None)
+
+                    if grid_params:
+                        with st.spinner("🔍 Performing Grid Search..."):
+                            grid = GridSearchCV(base_model, grid_params, cv=3, scoring='r2' if inferred_task == 'Regression' else 'accuracy')
+                            grid.fit(X_train, y_train)
+                            selected_model = grid.best_estimator_
+                            st.success(f"✅ Best parameters found: {grid.best_params_}")
+                    else:
+                        st.warning("⚠️ Automatic tuning not supported for this model. Using default settings.")
+                        selected_model = base_model
                 else:
-                    selected_model = classification_models[model_name] if model_type_choice == "Classification" else regression_models[model_name]
+                    selected_model = base_model
 
-                    try:
-                        selected_model.fit(X_train, y_train)
-                        st.success(f"✅ Model '{model_name}' has been successfully trained!")
-                        
-                        # Save the trained model and type to session state
-                        st.session_state["selected_model"] = selected_model
-                        st.session_state["model_type"] = model_type_choice
-                        st.session_state["model_name"] = model_name
+                try:
+                    selected_model.fit(X_train, y_train)
+                    st.success(f"✅ Model '{model_name}' has been successfully trained!")
 
-                    except Exception as e:
-                        st.error(f"🚫 Error during model training: {str(e)}")
+                    # Save in session
+                    st.session_state["selected_model"] = selected_model
+                    st.session_state["model_type"] = model_type_choice
+                    st.session_state["model_name"] = model_name
+
+                except Exception as e:
+                    st.error(f"🚫 Error during model training: {str(e)}")
 
     # ---------------------- MODEL EVALUATION SECTION -----------------------
     st.markdown("---")
@@ -686,7 +785,7 @@ if uploaded_file:
             pickle.dump(st.session_state["selected_model"], model_buffer)
 
             # Create 2 columns
-            col1, col2 = st.columns([1,1],gap="small")
+            col1, col2, col3 = st.columns([1,1.5,0.5])
 
             # Left column: Download model
             with col1:
@@ -698,7 +797,7 @@ if uploaded_file:
                 )
 
             # Right column: Download evaluation report
-            with col2:
+            with col3:
                 st.download_button(
                     label="📥 Download Evaluation Report",
                     data=report_text,  # This should be a string (your evaluation summary)
